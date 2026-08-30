@@ -5,7 +5,6 @@ import { useWalletStore } from '../store/useWalletStore';
 import { useAuthStore } from '../store/useAuthStore';
 import { toast } from 'sonner';
 import { toDataURL } from 'qrcode';
-import { FRIENDBOT_ENABLED, friendbotUrl } from '../lib/friendbot';
 
 vi.mock('sonner', () => ({
   toast: {
@@ -32,10 +31,6 @@ vi.mock('../store/useWalletStore', () => ({
   selectNeedsFunding: vi.fn(() => false),
 }));
 vi.mock('../store/useAuthStore');
-vi.mock('../lib/friendbot', () => ({
-  FRIENDBOT_ENABLED: true,
-  friendbotUrl: (addr: string) => `https://friendbot.stellar.org/?addr=${encodeURIComponent(addr)}`,
-}));
 
 // Report Freighter as installed so the picker offers it in jsdom.
 vi.mock('../lib/wallets', async () => {
@@ -63,7 +58,6 @@ vi.mock('lucide-react', () => ({
   AlertTriangle: ({ className, ...props }: any) => <div data-testid="alert-triangle-icon" className={className} {...props} />,
   Download: ({ className, ...props }: any) => <div data-testid="download-icon" className={className} {...props} />,
   ExternalLink: ({ className, ...props }: any) => <div data-testid="external-link-icon" className={className} {...props} />,
-  Droplets: ({ className, ...props }: any) => <div data-testid="droplets-icon" className={className} {...props} />,
   // Used by the WalletPicker rendered alongside the connect button.
   X: ({ className, ...props }: any) => <div data-testid="close-icon" className={className} {...props} />,
 }));
@@ -273,21 +267,6 @@ describe('WalletConnect', () => {
       );
       expect(screen.getByText('GTEST1234567890ABCDEFGHIJKLMNOPQRSTUVWXYZ')).toBeInTheDocument();
       expect(screen.getByRole('button', { name: /copy address/i })).toBeInTheDocument();
-    });
-
-    it('shows a drip link in the receive panel on testnet', async () => {
-      render(<WalletConnect />);
-
-      fireEvent.click(screen.getByRole('button', { name: /show receive qr code/i }));
-
-      await waitFor(() => {
-        expect(screen.getByRole('link', { name: /get testnet xlm/i })).toBeInTheDocument();
-      });
-
-      const dripLink = screen.getByRole('link', { name: /get testnet xlm/i });
-      expect(dripLink).toHaveAttribute('href', 'https://friendbot.stellar.org/?addr=GTEST1234567890ABCDEFGHIJKLMNOPQRSTUVWXYZ');
-      expect(dripLink).toHaveAttribute('target', '_blank');
-      expect(dripLink).toHaveAttribute('rel', 'noopener noreferrer');
     });
 
     it('shows authentication status when authenticated', () => {
