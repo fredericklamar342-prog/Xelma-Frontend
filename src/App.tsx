@@ -10,17 +10,17 @@ import LazyBoundary from './components/LazyBoundary';
 import ErrorBoundary from './components/ErrorBoundary';
 import { OfflineBanner } from './components/OfflineBanner';
 import Footer from './components/Footer';
-import ComingSoonPage from './pages/ComingSoonPage';
 import OnboardingChecklist from './components/OnboardingChecklist';
-import { Trophy } from 'lucide-react';
 
-const NotFound = lazy(() => import('./pages/NotFound'));
 const Dashboard = lazy(() => import(/* webpackChunkName: "dashboard" */ './pages/Dashboard'));
 const Leaderboard = lazy(() => import(/* webpackChunkName: "leaderboard" */ './components/Leaderboard'));
 const LearnPage = lazy(() => import(/* webpackChunkName: "learn" */ './pages/Learn'));
 const Connect = lazy(() => import('./pages/Connect'));
 const Profile = lazy(() => import('./pages/Profile'));
 const Pools = lazy(() => import('./pages/Pools'));
+const Tournament = lazy(() => import('./pages/Tournament'));
+const Tournament = lazy(() => import(/* webpackChunkName: "tournament" */ './pages/Tournament'));
+const Settings = lazy(() => import('./pages/Settings'));
 
 function App() {
   const { pathname } = useLocation();
@@ -37,6 +37,7 @@ function App() {
         Skip to main content
       </a>
       <OfflineBanner />
+      <RouteProgressBar />
       <Navbar />
       <CommandPalette />
       <ErrorBoundary>
@@ -52,18 +53,17 @@ function App() {
               <Route path="/learn" element={<Suspense fallback={<PageSkeleton type="learn" />}><LearnPage /></Suspense>} />
               <Route path="/connect" element={<Connect />} />
               <Route path="/pools" element={<Pools />} />
-              <Route
-                path="/tournament"
-                element={
-                  <ComingSoonPage
-                    icon={Trophy}
-                    title="Tournament"
-                    description="Competitive tournament mode is being built. Check back soon to compete for top rankings and exclusive rewards."
-                  />
-                }
-              />
+              <Route path="/tournament" element={<Tournament />} />
               <Route path="/profile" element={<Profile />} />
             </Routes>
+              <Route path="/tournament" element={<Suspense fallback={<PageSkeleton type="tournament" />}><Tournament /></Suspense>} />
+              <Route path="/profile" element={<Profile />} />
+              <Route path="/settings" element={<Suspense fallback={<PageSkeleton type="settings" />}><Settings /></Suspense>} />
+              <Route path="*" element={<Navigate to="/" replace />} />
+
+                <Route path="*" element={<NotFound />} />
+              </Routes>
+            </RouteTransition>
           </Suspense>
         </LazyBoundary>
       </ErrorBoundary>
