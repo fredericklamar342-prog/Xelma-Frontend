@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen, fireEvent, within } from '@testing-library/react';
 import PredictionControls from './PredictionControls';
 
 describe('PredictionControls', () => {
@@ -100,6 +100,52 @@ describe('PredictionControls', () => {
     expect(screen.queryByRole('alert')).not.toBeInTheDocument();
   });
 
+  it('fires a single submit per cluster of clicks while a submit is in flight (idempotency race guard)', () => {
+    const onPrediction = vi.fn();
+
+    render(
+      <PredictionControls
+        isWalletConnected={true}
+        isRoundActive={true}
+        walletBalance="50.00 XLM"
+        onPrediction={onPrediction}
+      />
+    );
+
+    fireEvent.change(screen.getByRole('spinbutton', { name: /Stake Amount/i }), {
+      target: { value: '50' },
+    });
+
+    const upButton = screen.getByRole('button', { name: /UP/i });
+    // Simulate a rapid double-click before the parent's in-flight state can
+    // propagate. Only the first click should produce a prediction.
+    fireEvent.click(upButton);
+    fireEvent.click(upButton);
+    fireEvent.click(screen.getByRole('button', { name: /DOWN/i }));
+
+    expect(onPrediction).toHaveBeenCalledTimes(1);
+    expect(onPrediction).toHaveBeenCalledWith({
+      direction: 'UP',
+      stake: '50',
+      exactPrice: undefined,
+      isLegend: false,
+    });
+
+    // Controls stay disabled and pending status is shown while in flight.
+    expect(upButton).toBeDisabled();
+    expect(screen.getByRole('status')).toHaveTextContent(/Submitting prediction/i);
+
+    // After the lock releases, a new submit can fire again.
+    vi.advanceTimersByTime(500);
+    expect(upButton).toBeDisabled(); // still no stake until re-entered
+    fireEvent.change(screen.getByRole('spinbutton', { name: /Stake Amount/i }), {
+      target: { value: '10' },
+    });
+    expect(upButton).not.toBeDisabled();
+    fireEvent.click(upButton);
+    expect(onPrediction).toHaveBeenCalledTimes(2);
+  });
+
   it('rejects invalid stake values and displays validation messages', () => {
     render(
       <PredictionControls
@@ -153,10 +199,11 @@ describe('PredictionControls', () => {
     fireEvent.click(screen.getByRole('checkbox', { name: /I am a legend/i }));
 
     const exactPriceInput = screen.getByRole('spinbutton', { name: /Exact Price Prediction/i });
-    fireEvent.change(exactPriceInput, { target: { value: '0.0000' } });
+    fireEvent.change(exactPriceInput, { target: { value: '10.0001' } });
     fireEvent.blur(exactPriceInput);
 
-    expect(screen.getByRole('alert')).toHaveTextContent(/Must be between 0.0001 and 10.0/i);
+    expect(screen.getByRole('alert')).toHaveTextContent(/Must be between 0.0001 and 10/i);
+    expect(screen.getByRole('alert')).toHaveTextContent(/Must be between 0\.0001 and 10/i);
     expect(onPrediction).not.toHaveBeenCalled();
   });
 
@@ -212,5 +259,54 @@ describe('PredictionControls', () => {
 
     fireEvent.click(screen.getByRole('button', { name: /UP/i }));
     expect(onPrediction).not.toHaveBeenCalled();
+  });
+
+  describe('Help Tooltip', () => {
+    it('renders the help icon button with correct aria attributes', () => {
+      render(<PredictionControls />);
+
+      const helpBtn = screen.getByRole('button', { name: 'Help: Legend and Precision rules' });
+      expect(helpBtn).toBeInTheDocument();
+      expect(helpBtn).toHaveAttribute('aria-expanded', 'false');
+      expect(helpBtn).toHaveAttribute('aria-controls', 'prediction-help-popover');
+    });
+
+    it('tooltip/popover is hidden on initial render', () => {
+      render(<PredictionControls />);
+
+      expect(screen.queryByRole('tooltip')).not.toBeInTheDocument();
+      expect(screen.queryByText(/Prediction Rules/i)).not.toBeInTheDocument();
+    });
+
+    it('clicking icon opens popover and shows Legend, Precision, and UP/DOWN labels', () => {
+      render(<PredictionControls />);
+
+      const helpBtn = screen.getByRole('button', { name: 'Help: Legend and Precision rules' });
+      fireEvent.click(helpBtn);
+
+      expect(helpBtn).toHaveAttribute('aria-expanded', 'true');
+      const tooltip = screen.getByRole('tooltip');
+      expect(tooltip).toBeInTheDocument();
+      expect(tooltip).toHaveAttribute('id', 'prediction-help-popover');
+
+      expect(within(tooltip).getByText('UP/DOWN')).toBeInTheDocument();
+      expect(within(tooltip).getByText('Precision')).toBeInTheDocument();
+      expect(within(tooltip).getByText('Legend')).toBeInTheDocument();
+    });
+
+    it('pressing Escape closes the popover and toggles aria-expanded back to false', () => {
+      render(<PredictionControls />);
+
+      const helpBtn = screen.getByRole('button', { name: 'Help: Legend and Precision rules' });
+      fireEvent.click(helpBtn);
+
+      expect(screen.getByRole('tooltip')).toBeInTheDocument();
+      expect(helpBtn).toHaveAttribute('aria-expanded', 'true');
+
+      fireEvent.keyDown(document, { key: 'Escape' });
+
+      expect(screen.queryByRole('tooltip')).not.toBeInTheDocument();
+      expect(helpBtn).toHaveAttribute('aria-expanded', 'false');
+    });
   });
 });
